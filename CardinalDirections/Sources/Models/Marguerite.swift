@@ -79,7 +79,18 @@ struct Vehicle: Codable, Identifiable, Hashable {
     var heading: Double { h }
 
     /// Minutes until this bus reaches its next stop, when the feed knows.
-    var minutesToNextStop: Int? { nextStopETA >= 0 ? nextStopETA : nil }
+    ///
+    /// The feed reports `nextStopETA` as a clock time — minutes since local
+    /// midnight — rather than a countdown, and `-1` when it has no prediction.
+    func minutesToNextStop(now: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard nextStopETA >= 0, nextStopETA < 24 * 60 else { return nil }
+        let parts = calendar.dateComponents([.hour, .minute], from: now)
+        let nowMinutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        var remaining = nextStopETA - nowMinutes
+        if remaining < -720 { remaining += 24 * 60 } // prediction lands after midnight
+        guard remaining >= -3, remaining <= 120 else { return nil }
+        return max(0, remaining)
+    }
 
     /// 0…1 how full the bus is, when the feed reports it.
     var fullness: Double? {

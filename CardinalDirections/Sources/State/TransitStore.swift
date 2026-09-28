@@ -10,7 +10,7 @@ struct LiveBus: Identifiable {
     let nextStop: Stop?
 
     var id: String { vehicle.id }
-    var minutes: Int? { vehicle.minutesToNextStop }
+    var minutes: Int? { vehicle.minutesToNextStop() }
 }
 
 /// A stop near you plus what's coming.
@@ -176,7 +176,10 @@ final class TransitStore {
             }
         }
 
-        let planner = TripPlanner(network: network)
+        let planner = TripPlanner(
+            network: network,
+            runningRouteIDs: Set(vehicles.filter(\.isInService).map(\.routeID))
+        )
         let results = planner.plans(through: places, liveWaits: waits)
         plans = results
         if results.isEmpty {

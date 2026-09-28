@@ -41,8 +41,8 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(line.isLoop)
     }
 
-    func testVehicleTreatsNegativeETAAsUnknown() {
-        let vehicle = Vehicle(
+    private func vehicle(nextStopETA: Int) -> Vehicle {
+        Vehicle(
             equipmentID: "1234",
             routeID: 42,
             lat: 37.42,
@@ -51,13 +51,49 @@ final class ModelTests: XCTestCase {
             load: 10,
             capacity: 40,
             nextStopID: 2,
-            nextStopETA: -1,
+            nextStopETA: nextStopETA,
             inService: 1,
             receiveTime: nil
         )
-        XCTAssertNil(vehicle.minutesToNextStop)
-        XCTAssertTrue(vehicle.isInService)
-        XCTAssertEqual(vehicle.fullness ?? 0, 0.25, accuracy: 0.001)
+    }
+
+    /// 21:07 local, so a `nextStopETA` of 1269 (21:09) is 2 minutes out.
+    private func nineOhSevenPM() -> Date {
+        var components = DateComponents()
+        components.year = 2026
+        components.month = 9
+        components.day = 27
+        components.hour = 21
+        components.minute = 7
+        return Calendar.current.date(from: components)!
+    }
+
+    func testVehicleTreatsNegativeETAAsUnknown() {
+        let bus = vehicle(nextStopETA: -1)
+        XCTAssertNil(bus.minutesToNextStop(now: nineOhSevenPM()))
+        XCTAssertTrue(bus.isInService)
+        XCTAssertEqual(bus.fullness ?? 0, 0.25, accuracy: 0.001)
+    }
+
+    func testNextStopETAIsClockTimeNotCountdown() {
+        XCTAssertEqual(vehicle(nextStopETA: 1269).minutesToNextStop(now: nineOhSevenPM()), 2)
+        XCTAssertEqual(vehicle(nextStopETA: 1267).minutesToNextStop(now: nineOhSevenPM()), 0)
+    }
+
+    func testNextStopETAWrapsPastMidnight() {
+        var components = DateComponents()
+        components.year = 2026
+        components.month = 9
+        components.day = 27
+        components.hour = 23
+        components.minute = 55
+        let nearMidnight = Calendar.current.date(from: components)!
+        XCTAssertEqual(vehicle(nextStopETA: 5).minutesToNextStop(now: nearMidnight), 10)
+    }
+
+    func testStaleNextStopETAIsDiscarded() {
+        XCTAssertNil(vehicle(nextStopETA: 600).minutesToNextStop(now: nineOhSevenPM()))
+        XCTAssertNil(vehicle(nextStopETA: 2000).minutesToNextStop(now: nineOhSevenPM()))
     }
 
     func testScheduledArrivalIsNotLive() {
@@ -145,6 +181,27 @@ final class TripPlannerTests: XCTestCase {
         XCTAssertFalse(plans.isEmpty)
         XCTAssertEqual(plans.first?.legs.first?.fromName, "start")
         XCTAssertEqual(plans.first?.legs.last?.toName, "end")
+    }
+
+    func testDormantLinesAreDeprioritisedAgainstRunningOnes() {
+        let origin = Place(name: "start", coordinate: CLLocationCoordinate2D(latitude: 37.4202, longitude: -122.1800))
+        let destination = Place(name: "end", coordinate: CLLocationCoordinate2D(latitude: 37.4202, longitude: -122.1596))
+
+        // Route 11 has no bus out, and route 99 is the only one running, so the
+        // line nobody is driving should look far more expensive than before.
+        let optimistic = TripPlanner(network: fixture())
+        let realistic = TripPlanner(network: fixture(), runningRouteIDs: [99])
+
+        XCTAssertEqual(optimistic.plans(through: [origin, destination]).first?.isWalkOnly, false)
+        XCTAssertEqual(realistic.plans(through: [origin, destination]).first?.isWalkOnly, true)
+    }
+
+    func testLiveETABeatsTheDormantPenalty() {
+        let planner = TripPlanner(network: fixture(), runningRouteIDs: [99])
+        let origin = Place(name: "start", coordinate: CLLocationCoordinate2D(latitude: 37.4202, longitude: -122.1800))
+        let destination = Place(name: "end", coordinate: CLLocationCoordinate2D(latitude: 37.4202, longitude: -122.1596))
+        let plan = planner.plans(through: [origin, destination], liveWaits: [1: [11: 3]]).first(where: { !$0.isWalkOnly })
+        XCTAssertEqual(plan?.legs.first(where: { $0.kind == .ride })?.waitMinutes, 3)
     }
 
     func testTwoPlacesAreRequired() {

@@ -231,36 +231,45 @@ struct PlanCard: View {
                 }
             }
 
-            HStack(spacing: 6) {
-                ForEach(Array(plan.legs.enumerated()), id: \.element.id) { index, leg in
-                    if index > 0 {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(Palette.subtext)
-                    }
-                    if let line = leg.line {
-                        LineBadge(line: line, size: 26)
-                    } else {
-                        Image(systemName: "figure.walk")
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(Palette.subtext)
+            // Long multi-stop trips have more hops than fit across the card.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(plan.legs.enumerated()), id: \.element.id) { index, leg in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundStyle(Palette.subtext)
+                        }
+                        if let line = leg.line {
+                            LineBadge(line: line, size: 26)
+                        } else {
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 13, weight: .black))
+                                .foregroundStyle(Palette.subtext)
+                        }
                     }
                 }
-                Spacer(minLength: 0)
+                .padding(.vertical, 1)
             }
 
-            HStack(spacing: 6) {
-                Pill(text: plan.arrival.formatted(date: .omitted, time: .shortened), icon: "clock.fill")
-                Pill(text: "\(plan.walkingMinutes) min walk", icon: "figure.walk")
-                if plan.transfers > 0 {
-                    Pill(text: "\(plan.transfers) transfer\(plan.transfers == 1 ? "" : "s")", icon: "arrow.triangle.swap")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Pill(text: plan.arrival.formatted(date: .omitted, time: .shortened), icon: "clock.fill")
+                    Pill(text: "\(plan.walkingMinutes) min walk", icon: "figure.walk")
+                    if plan.transfers > 0 {
+                        Pill(text: "\(plan.transfers) transfer\(plan.transfers == 1 ? "" : "s")", icon: "arrow.triangle.swap")
+                    }
                 }
-                Spacer(minLength: 0)
-                Text(Copy.planVibe(minutes: plan.totalMinutes, transfers: plan.transfers))
-                    .font(.caption)
-                    .foregroundStyle(Palette.poppy)
+                .padding(.vertical, 1)
             }
+
+            Text(Copy.planVibe(minutes: plan.totalMinutes, transfers: plan.transfers))
+                .font(.caption)
+                .foregroundStyle(Palette.poppy)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .cardSurface(24, highlighted: isBest)
     }

@@ -50,6 +50,10 @@ struct HomeView: View {
             guard let coordinate = location.coordinate else { return }
             store.origin = coordinate
         }
+        .onChange(of: focusedBus?.id) { _, _ in
+            guard let bus = focusedBus else { return }
+            center(on: bus.vehicle.coordinate, meters: 900)
+        }
         .sheet(isPresented: $showPlanner) {
             TripPlannerSheet(places: $planPlaces) { plan in
                 selectedPlan = plan
@@ -148,15 +152,7 @@ struct HomeView: View {
         VStack(spacing: 10) {
             Button {
                 Haptics.tap()
-                withAnimation(.easeInOut) {
-                    camera = .region(
-                        MKCoordinateRegion(
-                            center: location.effectiveCoordinate,
-                            latitudinalMeters: 1_400,
-                            longitudinalMeters: 1_400
-                        )
-                    )
-                }
+                center(on: location.effectiveCoordinate, meters: 1_400)
             } label: {
                 Image(systemName: "location.fill")
                     .font(.system(size: 15, weight: .black))
@@ -209,6 +205,19 @@ struct HomeView: View {
         Place(name: "My location", subtitle: "where you're standing", coordinate: location.effectiveCoordinate, isUserLocation: true)
     }
 
+    /// Centres the camera on a point, nudged north so the bottom deck doesn't
+    /// sit on top of whatever you just selected.
+    private func center(on coordinate: CLLocationCoordinate2D, meters: CLLocationDistance) {
+        let region = MKCoordinateRegion(center: coordinate, latitudinalMeters: meters, longitudinalMeters: meters)
+        let shifted = CLLocationCoordinate2D(
+            latitude: coordinate.latitude - region.span.latitudeDelta * 0.22,
+            longitude: coordinate.longitude
+        )
+        withAnimation(.easeInOut) {
+            camera = .region(MKCoordinateRegion(center: shifted, span: region.span))
+        }
+    }
+
     private func focus(on plan: TripPlan) {
         let coordinates = plan.legs.flatMap(\.path)
         guard !coordinates.isEmpty else { return }
@@ -223,7 +232,15 @@ struct HomeView: View {
             longitudeDelta: max(0.006, (lngs.max()! - lngs.min()!) * 1.9)
         )
         withAnimation(.easeInOut) {
-            camera = .region(MKCoordinateRegion(center: center, span: span))
+            camera = .region(
+                MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(
+                        latitude: center.latitude - span.latitudeDelta * 0.18,
+                        longitude: center.longitude
+                    ),
+                    span: span
+                )
+            )
         }
     }
 }

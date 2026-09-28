@@ -27,6 +27,7 @@ struct PlanDetailCard: View {
                 Text("arrive \(plan.arrival.formatted(date: .omitted, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(Palette.subtext)
+                    .lineLimit(1)
                 Button {
                     Haptics.tap()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { expanded.toggle() }
@@ -41,12 +42,16 @@ struct PlanDetailCard: View {
             }
 
             if expanded {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(plan.legs) { leg in
-                        LegRow(leg: leg)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(plan.legs) { leg in
+                            LegRow(leg: leg)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
-                .frame(maxHeight: 250)
+                .frame(maxHeight: 230)
+                .scrollBounceBehavior(.basedOnSize)
             }
 
             HStack(spacing: 10) {

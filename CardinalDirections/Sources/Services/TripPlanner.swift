@@ -65,11 +65,18 @@ struct TripPlanner {
     typealias LiveWaits = [Int: [Int: Int]]
 
     static let defaultWaitSeconds: TimeInterval = 8 * 60
+    /// What a line with no live ETA and no bus out there is worth waiting for:
+    /// long enough that a running line always wins, short enough that an
+    /// otherwise unreachable destination still gets a plan.
+    static let dormantWaitSeconds: TimeInterval = 45 * 60
     static let boardPenaltySeconds: TimeInterval = 150
     static let alightSeconds: TimeInterval = 30
     static let transferWalkPenalty: TimeInterval = 30
 
     let network: TransitNetwork
+    /// Route ids with a bus in service right now. Empty means "unknown", and
+    /// every line is treated as plausible.
+    var runningRouteIDs: Set<Int> = []
 
     private enum Node: Hashable {
         case origin
@@ -235,6 +242,9 @@ struct TripPlanner {
             if let minutes = liveWaits[stopID]?[routeID] {
                 return (TimeInterval(max(0, minutes) * 60), true)
             }
+        }
+        if !runningRouteIDs.isEmpty, line.routes.allSatisfy({ !runningRouteIDs.contains($0) }) {
+            return (Self.dormantWaitSeconds, false)
         }
         return (Self.defaultWaitSeconds, false)
     }
